@@ -1,0 +1,12 @@
+{"id": "play_integrity_fix", "title": "Play Integrity Fix", "description": "Fix Play Integrity (and SafetyNet) verdicts.", "github_repo": "chiteroman/PlayIntegrityFix"}
+{"id": "lsposed_zygisk", "title": "LSPosed (Zygisk)", "description": "A Zygisk module trying to provide an ART hooking framework which delivers consistent APIs with the original Xposed.", "github_repo": "LSPosed/LSPosed"}
+{"id": "safetynet_fix", "title": "Universal SafetyNet Fix", "description": "A universal fix for SafetyNet and Play Integrity APIs on devices with hardware attestation and unlocked bootloaders.", "github_repo": "kdrag0n/safetynet-fix"}
+{"id": "hide_my_applist", "title": "Hide My Applist", "description": "An Xposed module to intercept applist detections.", "github_repo": "Dr-TSNG/Hide-My-Applist"}
+{"id": "gms_doze", "title": "Universal GMS Doze", "description": "Patches Google Play services (GMS) to be able to use battery optimization (Doze).", "github_repo": "gloeyisk/universal-gms-doze"}
+{"id": "viper4android_re", "title": "ViPER4Android FX (Repackaged)", "description": "ViPER4Android FX Materialized repackaged as a Magisk module.", "github_repo": "programminghoch10/ViPER4AndroidRepackaged"}
+{"id": "pixelify", "title": "Pixelify", "description": "Magisk module to bring Pixel Exclusive features to any Custom ROM.", "github_repo": "Kingsman44/Pixelify"}
+{"id": "zygisk_detach", "title": "Zygisk Detach", "description": "Detach apps from Play Store updates using Zygisk.", "github_repo": "j-hc/Zygisk-Detach"}
+{"id": "aosp_mods", "title": "AOSP Mods", "description": "A mixed Xposed+Magisk module to customize AOSP-based ROMs.", "github_repo": "siavash79/AOSPMods"}
+{"id": "revanced_magisk", "title": "YouTube ReVanced Module", "description": "Magisk module for YouTube ReVanced.", "github_repo": "j-hc/revanced-magisk-module"}
+{"id": "bypass_root_check_pro", "title": "Bypass Root Check Pro", "description": "An Xposed module to hide root and Xposed environments.", "github_repo": "yujincheng08/BypassRootCheckPro"}
+{"id": "blobmoji", "title": "Blobmojis", "description": "Magisk module to bring back Google's blobs (Noto Emoji with Blob design).", "github_repo": "C1710/blobmoji"}
