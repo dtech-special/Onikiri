@@ -39,7 +39,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          line=$(head -n 1 codenames.txt)
+          line=$(tail -n 1 codenames.txt)
           codename=$(echo "$line" | sed -E 's/^([^ ]+).*/\1/')
           version=$(echo "$line" | sed -E 's/.*\(([0-9.-]+)\).*/\1/')
           echo "codename=$codename" >> "$GITHUB_OUTPUT"
