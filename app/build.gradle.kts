@@ -82,8 +82,22 @@ val codename = rootProject.file("codenames.txt")
     ?.lastOrNull { it.isNotBlank() }
     ?.trim()
     ?.substringBefore(" ")
-    ?: "Powder"
+    ?.lowercase()
+    ?: "powder"
+
+val ver = android.defaultConfig.versionName ?: "4.0-0"
 
 base {
-    archivesName.set("Onikiri-v${android.defaultConfig.versionName ?: "4.0-0"}-$codename")
+    archivesName.set("Onikiri-$ver-$codename")
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    doLast {
+        val dir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        dir.listFiles { f -> f.name.endsWith("-debug.apk") }?.forEach { file ->
+            val target = File(dir, file.name.removeSuffix("-debug.apk") + ".apk")
+            if (target.exists()) target.delete()
+            file.renameTo(target)
+        }
+    }
 }
