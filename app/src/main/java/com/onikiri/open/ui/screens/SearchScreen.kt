@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,16 +31,20 @@ import com.onikiri.open.ui.components.OnikiriSearchField
 import com.onikiri.open.viewmodel.CatalogState
 import com.onikiri.open.viewmodel.CatalogViewModel
 import com.onikiri.open.viewmodel.DetailsState
+import com.onikiri.open.viewmodel.InstalledViewModel
 
 @Composable
 fun SearchScreen(
     catalogVm: CatalogViewModel,
+    installedVm: InstalledViewModel,
     onInstall: (RootModule) -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val state by catalogVm.state.collectAsStateWithLifecycle()
     val expanded by catalogVm.expanded.collectAsStateWithLifecycle()
     val details by catalogVm.details.collectAsStateWithLifecycle()
+    val installed by installedVm.byId.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         OnikiriSearchField(
@@ -55,10 +60,14 @@ fun SearchScreen(
                 onAction = { catalogVm.refresh(force = true) }
             )
             is CatalogState.Ready -> {
-                // Filtering runs synchronously on every keystroke, so the list updates instantly.
-                val results = remember(current.modules, query, details) {
+                // Matches title, description, module id and author (repository owner, release
+                // author and the author from an installed module.prop). Runs on every keystroke.
+                val results = remember(current.modules, query, details, installed) {
                     filterModules(current.modules, query) { module ->
-                        (details[module.id] as? DetailsState.Loaded)?.details?.author
+                        listOfNotNull(
+                            (details[module.id] as? DetailsState.Loaded)?.details?.author,
+                            installed[module.id]?.author
+                        ).joinToString(" ").ifEmpty { null }
                     }
                 }
                 Text(
@@ -78,11 +87,13 @@ fun SearchScreen(
                     } else {
                         ModuleList(
                             modules = results,
+                            installed = installed,
                             expanded = expanded,
                             details = details,
                             onToggle = catalogVm::toggle,
                             onInstall = onInstall,
-                            onRetryDetails = { catalogVm.loadDetails(it, force = true) }
+                            onRetryDetails = { catalogVm.loadDetails(it, force = true) },
+                            onOpenSource = { uriHandler.openUri("https://github.com/${it.githubRepo}") }
                         )
                     }
                 }

@@ -14,7 +14,11 @@ data class AppSettings(
     val dynamicColor: Boolean = false,
     val amoled: Boolean = false,
     val presetId: String = "onikiri",
+    val fontId: String = "system",
+    val launcherIcon: String = "violet",
     val autoCleanTemp: Boolean = true,
     val confirmSoftReboot: Boolean = true,
-    val customRepos: List<String> = emptyList()
+    val customRepos: List<String> = emptyList(),
+    /** Repositories (built-in or custom) that are switched off. */
+    val disabledRepos: List<String> = emptyList()
 )

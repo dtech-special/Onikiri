@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -22,7 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import com.onikiri.open.ui.theme.emphasized
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
@@ -40,7 +39,7 @@ fun SettingsSection(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall.emphasized(),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)
             )
@@ -60,12 +59,12 @@ fun SwitchRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     enabled: Boolean = true,
-    icon: ImageVector? = null
+    icon: Painter? = null
 ) {
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = if (subtitle != null) ({ Text(subtitle) }) else null,
-        leadingContent = if (icon != null) ({ Icon(icon, contentDescription = null) }) else null,
+        leadingContent = if (icon != null) ({ Icon(painter = icon, contentDescription = null) }) else null,
         trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier.toggleable(
@@ -95,5 +94,5 @@ fun InfoLine(label: String, value: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun CheckIcon(modifier: Modifier = Modifier, tint: Color = Color.Unspecified) {
-    Icon(Icons.Default.Check, contentDescription = null, modifier = modifier, tint = tint)
+    Icon(AppIcons.check(), contentDescription = null, modifier = modifier, tint = tint)
 }

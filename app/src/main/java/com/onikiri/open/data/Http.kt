@@ -15,7 +15,7 @@ internal object Http {
         headers: Map<String, String> = emptyMap(),
         readTimeoutMs: Int = 30_000
     ): HttpURLConnection {
-        require(url.startsWith("https://")) { "Only HTTPS URLs are allowed: $url" }
+        require(url.startsWith("https://") || url.startsWith("http://")) { "Only http(s) URLs are allowed: $url" }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000
         connection.readTimeout = readTimeoutMs

@@ -10,16 +10,17 @@ object RepoUrl {
     private val blobForm = Regex("^https://github\\.com/([^/]+)/([^/]+)/blob/(.+)$")
 
     /**
-     * Accepts a full https URL, a github.com blob URL, or the legacy short form
-     * `USER/REPO/refs/heads/main/NAME.jsonl`. Returns null for anything unusable
-     * (empty, contains spaces, plain http).
+     * Accepts any http:// or https:// URL (GitHub, GitLab, Codeberg, a LAN address such as
+     * http://192.168.1.5:8080/modules.jsonl, ...), a github.com blob URL, or the legacy short form
+     * `USER/REPO/refs/heads/main/NAME.jsonl`. Returns null for anything unusable.
      */
     fun normalize(input: String): String? {
         var value = input.trim()
         if (value.isEmpty() || value.any { it.isWhitespace() }) return null
-        if (value.startsWith("http://", ignoreCase = true)) return null
-        if (value.startsWith("https://", ignoreCase = true)) {
-            value = "https://" + value.substring("https://".length)
+        val lower = value.lowercase()
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            val schemeEnd = value.indexOf("://") + 3
+            value = lower.substring(0, schemeEnd) + value.substring(schemeEnd)
             val blob = blobForm.matchEntire(value)
             if (blob != null) {
                 value = "https://raw.githubusercontent.com/" +

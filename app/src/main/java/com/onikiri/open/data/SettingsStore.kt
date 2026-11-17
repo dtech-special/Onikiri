@@ -1,110 +1,140 @@
 package com.onikiri.open.data
 
 import android.content.Context
-import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 
-/** Single source of truth for app settings, backed by SharedPreferences and exposed as a StateFlow. */
+// Values written by earlier builds in the "onikiri_prefs" SharedPreferences are migrated automatically.
+private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "onikiri_settings",
+    produceMigrations = { context -> listOf(SharedPreferencesMigration(context, "onikiri_prefs")) }
+)
+
+/** Single source of truth for app settings, backed by DataStore and exposed as a StateFlow. */
 class SettingsStore private constructor(context: Context) {
 
-    private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val dataStore = appContext.settingsDataStore
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _settings: MutableStateFlow<AppSettings>
     val settings: StateFlow<AppSettings>
 
     init {
-        migrateLegacy(context.applicationContext)
-        _settings = MutableStateFlow(load())
+        // One short blocking read so the first frame already uses the saved theme and font.
+        val initial = runBlocking { read(dataStore.data.first()) }
+        _settings = MutableStateFlow(initial)
         settings = _settings.asStateFlow()
+        scope.launch { dataStore.data.map { read(it) }.collect { _settings.value = it } }
+        scope.launch { migrateLegacy() }
     }
 
-    @Synchronized
+    /** Applies [transform] atomically; the new value arrives through [settings]. */
     fun update(transform: (AppSettings) -> AppSettings) {
-        val updated = transform(_settings.value)
-        if (updated == _settings.value) return
-        save(updated)
-        _settings.value = updated
+        scope.launch {
+            dataStore.edit { prefs -> write(prefs, transform(read(prefs))) }
+        }
     }
 
-    private fun load(): AppSettings {
-        val defaults = AppSettings()
+    private fun read(p: Preferences): AppSettings {
+        val d = AppSettings()
         return AppSettings(
-            setupDone = prefs.getBoolean(KEY_SETUP_DONE, defaults.setupDone),
-            managerChoice = enumOf(prefs.getString(KEY_MANAGER, null), defaults.managerChoice),
-            themeMode = enumOf(prefs.getString(KEY_THEME, null), defaults.themeMode),
-            dynamicColor = prefs.getBoolean(KEY_DYNAMIC, defaults.dynamicColor),
-            amoled = prefs.getBoolean(KEY_AMOLED, defaults.amoled),
-            presetId = prefs.getString(KEY_PRESET, defaults.presetId) ?: defaults.presetId,
-            autoCleanTemp = prefs.getBoolean(KEY_AUTO_CLEAN, defaults.autoCleanTemp),
-            confirmSoftReboot = prefs.getBoolean(KEY_CONFIRM_SOFT, defaults.confirmSoftReboot),
-            customRepos = readRepos()
+            setupDone = p[SETUP_DONE] ?: d.setupDone,
+            managerChoice = enumOf(p[MANAGER], d.managerChoice),
+            themeMode = enumOf(p[THEME], d.themeMode),
+            dynamicColor = p[DYNAMIC] ?: d.dynamicColor,
+            amoled = p[AMOLED] ?: d.amoled,
+            presetId = p[PRESET] ?: d.presetId,
+            fontId = p[FONT] ?: d.fontId,
+            launcherIcon = p[LAUNCHER_ICON] ?: d.launcherIcon,
+            autoCleanTemp = p[AUTO_CLEAN] ?: d.autoCleanTemp,
+            confirmSoftReboot = p[CONFIRM_SOFT] ?: d.confirmSoftReboot,
+            customRepos = readList(p[REPOS]),
+            disabledRepos = readList(p[DISABLED_REPOS])
         )
     }
 
-    private fun save(s: AppSettings) {
-        val array = JSONArray()
-        s.customRepos.forEach { array.put(it) }
-        prefs.edit()
-            .putBoolean(KEY_SETUP_DONE, s.setupDone)
-            .putString(KEY_MANAGER, s.managerChoice.name)
-            .putString(KEY_THEME, s.themeMode.name)
-            .putBoolean(KEY_DYNAMIC, s.dynamicColor)
-            .putBoolean(KEY_AMOLED, s.amoled)
-            .putString(KEY_PRESET, s.presetId)
-            .putBoolean(KEY_AUTO_CLEAN, s.autoCleanTemp)
-            .putBoolean(KEY_CONFIRM_SOFT, s.confirmSoftReboot)
-            .putString(KEY_REPOS, array.toString())
-            .apply()
+    private fun write(p: MutablePreferences, s: AppSettings) {
+        p[SETUP_DONE] = s.setupDone
+        p[MANAGER] = s.managerChoice.name
+        p[THEME] = s.themeMode.name
+        p[DYNAMIC] = s.dynamicColor
+        p[AMOLED] = s.amoled
+        p[PRESET] = s.presetId
+        p[FONT] = s.fontId
+        p[LAUNCHER_ICON] = s.launcherIcon
+        p[AUTO_CLEAN] = s.autoCleanTemp
+        p[CONFIRM_SOFT] = s.confirmSoftReboot
+        p[REPOS] = writeList(s.customRepos)
+        p[DISABLED_REPOS] = writeList(s.disabledRepos)
     }
 
-    private fun readRepos(): List<String> {
-        val raw = prefs.getString(KEY_REPOS, null) ?: return emptyList()
+    private fun readList(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
         return try {
             val array = JSONArray(raw)
-            (0 until array.length()).mapNotNull { index ->
-                array.optString(index, "").takeIf { it.isNotBlank() }
-            }.distinct()
+            (0 until array.length()).mapNotNull { array.optString(it, "").takeIf { s -> s.isNotBlank() } }.distinct()
         } catch (_: Exception) {
             emptyList()
         }
     }
 
-    /** Carries over a custom repository chosen in the pre-1.0 settings screen. */
-    private fun migrateLegacy(context: Context) {
-        if (prefs.getBoolean(KEY_LEGACY_MIGRATED, false)) return
-        val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
-        val editor = prefs.edit()
-        if (!legacy.getBoolean("repo_standard", true)) {
-            val url = RepoUrl.normalize(legacy.getString("repo_url", "") ?: "")
-            if (url != null && url != RepoUrl.BUILT_IN) {
-                val array = JSONArray()
-                array.put(url)
-                editor.putString(KEY_REPOS, array.toString())
+    private fun writeList(list: List<String>): String {
+        val array = JSONArray()
+        list.distinct().forEach { array.put(it) }
+        return array.toString()
+    }
+
+    /** Carries over a custom repository chosen in the original (pre-4.0) settings screen. */
+    private suspend fun migrateLegacy() {
+        dataStore.edit { p ->
+            if (p[LEGACY_MIGRATED] == true) return@edit
+            val legacy = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            if (!legacy.getBoolean("repo_standard", true)) {
+                val url = RepoUrl.normalize(legacy.getString("repo_url", "") ?: "")
+                if (url != null && url != RepoUrl.BUILT_IN) {
+                    val current = readList(p[REPOS])
+                    if (url !in current) p[REPOS] = writeList(current + url)
+                }
             }
+            p[LEGACY_MIGRATED] = true
         }
-        editor.putBoolean(KEY_LEGACY_MIGRATED, true).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOf(name: String?, default: T): T =
         enumValues<T>().firstOrNull { it.name == name } ?: default
 
     companion object {
-        private const val PREFS = "onikiri_prefs"
-        private const val LEGACY_PREFS = "settings"
-        private const val KEY_SETUP_DONE = "setup_done"
-        private const val KEY_MANAGER = "manager_choice"
-        private const val KEY_THEME = "theme_mode"
-        private const val KEY_DYNAMIC = "dynamic_color"
-        private const val KEY_AMOLED = "amoled"
-        private const val KEY_PRESET = "preset_id"
-        private const val KEY_AUTO_CLEAN = "auto_clean_temp"
-        private const val KEY_CONFIRM_SOFT = "confirm_soft_reboot"
-        private const val KEY_REPOS = "custom_repos"
-        private const val KEY_LEGACY_MIGRATED = "legacy_migrated"
+        private val SETUP_DONE = booleanPreferencesKey("setup_done")
+        private val MANAGER = stringPreferencesKey("manager_choice")
+        private val THEME = stringPreferencesKey("theme_mode")
+        private val DYNAMIC = booleanPreferencesKey("dynamic_color")
+        private val AMOLED = booleanPreferencesKey("amoled")
+        private val PRESET = stringPreferencesKey("preset_id")
+        private val FONT = stringPreferencesKey("font_id")
+        private val LAUNCHER_ICON = stringPreferencesKey("launcher_icon")
+        private val AUTO_CLEAN = booleanPreferencesKey("auto_clean_temp")
+        private val CONFIRM_SOFT = booleanPreferencesKey("confirm_soft_reboot")
+        private val REPOS = stringPreferencesKey("custom_repos")
+        private val DISABLED_REPOS = stringPreferencesKey("disabled_repos")
+        private val LEGACY_MIGRATED = booleanPreferencesKey("legacy_migrated")
 
         @Volatile
         private var instance: SettingsStore? = null

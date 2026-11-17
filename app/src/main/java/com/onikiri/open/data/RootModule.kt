@@ -21,10 +21,21 @@ data class RootModule(
     val title: String,
     val description: String,
     val githubRepo: String,
-    val status: ModuleStatus
+    val status: ModuleStatus,
+    /** URL of the repository index this module came from. */
+    val repoUrl: String = "",
+    /** Optional substring used to pick the right release asset automatically. */
+    val assetFilter: String = ""
 ) {
     val owner: String get() = githubRepo.substringBefore('/')
 }
+
+@Immutable
+data class ReleaseAsset(
+    val name: String,
+    val url: String,
+    val size: Long
+)
 
 @Immutable
 data class ModuleDetails(
@@ -34,7 +45,8 @@ data class ModuleDetails(
     val publishedAt: String?,
     val releaseNotes: String?,
     val readme: String?,
-    val downloadUrl: String?,
-    val downloadName: String?,
-    val downloadSize: Long
+    val assets: List<ReleaseAsset>,
+    /** Version / versionCode from module.prop in the repository root, when it exists. */
+    val remoteVersion: String? = null,
+    val remoteVersionCode: Long? = null
 )

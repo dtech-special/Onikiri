@@ -20,18 +20,25 @@ data class RootInfo(
     val status: RootStatus = RootStatus(granted = false, managers = emptyList())
 )
 
-/** Shared by the setup flow and the settings screen: asks for root once and keeps the result. */
+/** Shared by the setup flow and the settings screens: asks for root and keeps the result. */
 class RootViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _info = MutableStateFlow(RootInfo())
     val info: StateFlow<RootInfo> = _info.asStateFlow()
 
-    fun refresh() {
+    /**
+     * @param userInitiated true for the Retry button: the cached libsu shell is always closed so the
+     * root manager is asked again. Automatic re-checks (returning to the app) only do that while
+     * root has not been granted yet, so a working root shell is never closed behind the user's back.
+     */
+    fun refresh(userInitiated: Boolean = false) {
         if (_info.value.checking) return
+        val current = _info.value
+        val fresh = userInitiated || (current.loaded && !current.status.granted)
         _info.update { it.copy(checking = true) }
         viewModelScope.launch {
             val status = try {
-                RootShell.detect()
+                RootShell.detect(fresh = fresh)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

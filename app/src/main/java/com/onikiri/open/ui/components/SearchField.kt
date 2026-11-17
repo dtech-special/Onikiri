@@ -9,9 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -38,7 +35,7 @@ fun OnikiriSearchField(
         singleLine = true,
         shape = RoundedCornerShape(28.dp),
         placeholder = { Text(stringResource(R.string.search_hint)) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        leadingIcon = { Icon(AppIcons.search(), contentDescription = null) },
         trailingIcon = {
             AnimatedVisibility(
                 visible = query.isNotEmpty(),
@@ -46,7 +43,7 @@ fun OnikiriSearchField(
                 exit = fadeOut() + scaleOut()
             ) {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.search_clear))
+                    Icon(AppIcons.clear(), contentDescription = stringResource(R.string.search_clear))
                 }
             }
         },

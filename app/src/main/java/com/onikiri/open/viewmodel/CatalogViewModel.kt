@@ -10,6 +10,7 @@ import com.onikiri.open.data.ModuleRepository
 import com.onikiri.open.data.RepoUrl
 import com.onikiri.open.data.RootModule
 import com.onikiri.open.data.SettingsStore
+import com.onikiri.open.data.repoNameFromUrl
 import com.onikiri.open.data.userMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 sealed interface CatalogState {
     data object Loading : CatalogState
@@ -45,6 +48,7 @@ class CatalogViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SettingsStore.get(ctx)
     private val repository = ModuleRepository(ctx)
     private val detailsRepository = ModuleDetailsRepository(ctx)
+    private val gate = Semaphore(3)
 
     private val _state = MutableStateFlow<CatalogState>(CatalogState.Loading)
     val state: StateFlow<CatalogState> = _state.asStateFlow()
@@ -58,17 +62,23 @@ class CatalogViewModel(app: Application) : AndroidViewModel(app) {
     private val _details = MutableStateFlow<Map<String, DetailsState>>(emptyMap())
     val details: StateFlow<Map<String, DetailsState>> = _details.asStateFlow()
 
+    /** Readable name of every configured repository, keyed by URL. */
+    private val _repoNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val repoNames: StateFlow<Map<String, String>> = _repoNames.asStateFlow()
+
     private var loadJob: Job? = null
 
     init {
-        // Emits once on start and again whenever the list of custom repositories changes.
+        // Emits once on start and again whenever repositories are added, removed or toggled.
         viewModelScope.launch {
             store.settings
-                .map { it.customRepos }
+                .map { it.customRepos to it.disabledRepos }
                 .distinctUntilChanged()
                 .collect { refresh(force = false) }
         }
     }
+
+    fun nameOf(url: String): String = _repoNames.value[url] ?: repoNameFromUrl(url)
 
     fun refresh(force: Boolean = true) {
         loadJob?.cancel()
@@ -77,8 +87,10 @@ class CatalogViewModel(app: Application) : AndroidViewModel(app) {
             _refreshing.value = true
             if (_state.value !is CatalogState.Ready) _state.value = CatalogState.Loading
             try {
-                val urls = listOf(RepoUrl.BUILT_IN) + store.settings.value.customRepos
-                val result = repository.load(urls, force)
+                val settings = store.settings.value
+                val urls = listOf(RepoUrl.BUILT_IN) + settings.customRepos
+                val result = repository.load(urls, settings.disabledRepos.toSet(), force)
+                _repoNames.value = result.names
                 _state.value = CatalogState.Ready(result.modules, result.offline, result.failedRepos)
             } catch (e: CancellationException) {
                 throw e
@@ -99,13 +111,19 @@ class CatalogViewModel(app: Application) : AndroidViewModel(app) {
         if (willExpand) loadDetails(module)
     }
 
+    /** Loads release info for the catalog entries of installed modules so Update can be detected. */
+    fun preloadDetails(ids: Set<String>) {
+        val ready = _state.value as? CatalogState.Ready ?: return
+        ready.modules.filter { it.id in ids }.take(40).forEach { loadDetails(it) }
+    }
+
     fun loadDetails(module: RootModule, force: Boolean = false) {
         val current = _details.value[module.id]
         if (!force && (current is DetailsState.Loaded || current is DetailsState.Loading)) return
         _details.update { it + (module.id to DetailsState.Loading) }
         viewModelScope.launch {
             try {
-                val loaded = detailsRepository.load(module, force)
+                val loaded = gate.withPermit { detailsRepository.load(module, force) }
                 _details.update { it + (module.id to DetailsState.Loaded(loaded)) }
             } catch (e: CancellationException) {
                 throw e

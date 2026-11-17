@@ -1,5 +1,9 @@
 package com.onikiri.open.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
@@ -25,15 +29,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -51,13 +51,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.onikiri.open.R
+import com.onikiri.open.ui.components.AppIcons
+import com.onikiri.open.ui.components.IndicatorState
+import com.onikiri.open.ui.components.StatusIndicator
 import com.onikiri.open.ui.components.WordRevealText
 import com.onikiri.open.ui.components.formatBytes
+import com.onikiri.open.data.ReleaseAsset
+import com.onikiri.open.ui.theme.emphasized
 import com.onikiri.open.viewmodel.InstallStage
 import com.onikiri.open.viewmodel.InstallUiState
 import com.onikiri.open.viewmodel.LogKind
@@ -80,9 +86,13 @@ fun InstallScreen(
     onClose: () -> Unit,
     onRetry: () -> Unit,
     onReboot: () -> Unit,
-    onSoftReboot: () -> Unit
+    onSoftReboot: () -> Unit,
+    onPickArchive: (ReleaseAsset) -> Unit,
+    onDismissArchivePicker: () -> Unit
 ) {
     var confirmSoft by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val logCopied = stringResource(R.string.log_copied)
 
     Surface(
         modifier = Modifier
@@ -97,30 +107,64 @@ fun InstallScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = stringResource(R.string.install_title, state.module?.title ?: ""),
-                style = MaterialTheme.typography.headlineSmall
-            )
-            AnimatedContent(
-                targetState = state.stage,
-                transitionSpec = {
-                    (fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 2 }) togetherWith fadeOut(tween(150))
-                },
-                label = "stageLabel"
-            ) { stage ->
-                Text(
-                    text = stringResource(stageLabel(stage)),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (stage == InstallStage.FAILED) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.install_title, state.title),
+                        style = MaterialTheme.typography.headlineSmall.emphasized(),
+                        maxLines = 2
+                    )
+                    AnimatedContent(
+                        targetState = state.stage,
+                        transitionSpec = {
+                            (fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 2 }) togetherWith fadeOut(tween(150))
+                        },
+                        label = "stageLabel"
+                    ) { stage ->
+                        Text(
+                            text = stringResource(stageLabel(stage)),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (stage == InstallStage.FAILED) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
+                        )
                     }
+                }
+                StatusIndicator(
+                    state = when (state.stage) {
+                        InstallStage.SUCCESS -> IndicatorState.SUCCESS
+                        InstallStage.FAILED -> IndicatorState.FAILED
+                        else -> IndicatorState.WORKING
+                    },
+                    size = 64.dp
                 )
             }
             StepRow(state)
             ProgressBlock(state)
-            LogPanel(lines = state.log, modifier = Modifier.weight(1f).fillMaxWidth())
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LogPanel(lines = state.log, modifier = Modifier.fillMaxSize())
+                IconButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Onikiri install log", state.logAsText()))
+                        Toast.makeText(context, logCopied, Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = state.log.isNotEmpty(),
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        painter = AppIcons.copy(),
+                        contentDescription = stringResource(R.string.copy_log),
+                        tint = TerminalText
+                    )
+                }
+            }
 
             val kind = when (state.stage) {
                 InstallStage.SUCCESS -> ActionKind.SUCCESS
@@ -154,7 +198,7 @@ fun InstallScreen(
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = onReboot, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.PowerSettingsNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(AppIcons.power(), contentDescription = null, modifier = Modifier.size(18.dp))
                                 Text(
                                     text = stringResource(R.string.reboot),
                                     modifier = Modifier.padding(start = 6.dp)
@@ -164,7 +208,7 @@ fun InstallScreen(
                                 onClick = { if (confirmSoftReboot) confirmSoft = true else onSoftReboot() },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(AppIcons.restart(), contentDescription = null, modifier = Modifier.size(18.dp))
                                 Text(
                                     text = stringResource(R.string.soft_reboot),
                                     modifier = Modifier.padding(start = 6.dp)
@@ -186,6 +230,10 @@ fun InstallScreen(
                 }
             }
         }
+    }
+
+    state.picker?.let { picker ->
+        ArchivePickerDialog(picker = picker, onConfirm = onPickArchive, onDismiss = onDismissArchivePicker)
     }
 
     if (confirmSoft) {
@@ -268,8 +316,8 @@ private fun StepChip(label: String, number: Int, done: Boolean, active: Boolean,
                 label = "stepIcon"
             ) { mode ->
                 when (mode) {
-                    3 -> Icon(Icons.Default.Close, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
-                    2 -> Icon(Icons.Default.Check, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
+                    3 -> Icon(AppIcons.close(), contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
+                    2 -> Icon(AppIcons.check(), contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
                     1 -> CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,

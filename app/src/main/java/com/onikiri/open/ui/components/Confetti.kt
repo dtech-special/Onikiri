@@ -46,6 +46,8 @@ private class Particle {
     var color: Color = Color.White
 }
 
+/** Hard limit of simultaneously active particles so low-end devices keep their frame rate. */
+private const val MAX_PARTICLES = 180
 private const val LIFETIME = 7.5f
 private const val FADE = 1.2f
 private const val TWO_PI = (2.0 * PI).toFloat()
@@ -64,7 +66,8 @@ private class ConfettiSystem {
     val particles = ArrayList<Particle>()
     private val random = Random(System.nanoTime())
 
-    private fun spawn(x: Float, y: Float, vx: Float, vy: Float, density: Float): Particle {
+    private fun spawn(x: Float, y: Float, vx: Float, vy: Float, density: Float) {
+        if (particles.size >= MAX_PARTICLES) return
         val p = Particle()
         p.x = x
         p.y = y
@@ -81,7 +84,6 @@ private class ConfettiSystem {
         p.phase = random.nextFloat() * TWO_PI
         p.color = CONFETTI_COLORS[random.nextInt(CONFETTI_COLORS.size)]
         particles.add(p)
-        return p
     }
 
     private fun cannon(x: Float, y: Float, centerDegrees: Float, count: Int, density: Float) {
@@ -99,12 +101,12 @@ private class ConfettiSystem {
     }
 
     fun burst(width: Float, height: Float, density: Float) {
-        cannon(0f, height, 62f, 110, density)
-        cannon(width, height, 118f, 110, density)
+        cannon(0f, height, 62f, 70, density)
+        cannon(width, height, 118f, 70, density)
     }
 
     fun rain(width: Float, density: Float) {
-        repeat(70) {
+        repeat(40) {
             spawn(
                 random.nextFloat() * width,
                 -random.nextFloat() * 160f * density,

@@ -12,8 +12,8 @@ import java.net.HttpURLConnection
 import java.security.MessageDigest
 
 /**
- * Downloads and caches JSONL module indexes. Uses ETag conditional requests, writes atomically
- * and falls back to the on-disk copy when the network is unavailable.
+ * Downloads and caches JSONL module indexes from any http(s) server. Uses ETag conditional
+ * requests, writes atomically and falls back to the on-disk copy when the network is unavailable.
  */
 class ModuleRepository(context: Context) {
 
@@ -22,36 +22,59 @@ class ModuleRepository(context: Context) {
     data class CatalogResult(
         val modules: List<RootModule>,
         val failedRepos: Int,
-        val offline: Boolean
+        val offline: Boolean,
+        /** Display name of every configured repository (also the disabled ones). */
+        val names: Map<String, String>
     )
 
     private class Fetched(val text: String, val fromCache: Boolean)
 
-    suspend fun load(urls: List<String>, force: Boolean): CatalogResult = withContext(Dispatchers.IO) {
-        dir.mkdirs()
-        val merged = LinkedHashMap<String, RootModule>()
-        var failed = 0
-        var servedFromCache = 0
-        var firstError: Throwable? = null
-        for (url in urls) {
-            ensureActive()
-            try {
-                val fetched = fetch(url, force)
-                if (fetched.fromCache) servedFromCache++
-                for (module in parseModules(fetched.text)) {
-                    if (!merged.containsKey(module.id)) merged[module.id] = module
+    suspend fun load(urls: List<String>, disabled: Set<String>, force: Boolean): CatalogResult =
+        withContext(Dispatchers.IO) {
+            dir.mkdirs()
+            val merged = LinkedHashMap<String, RootModule>()
+            val names = LinkedHashMap<String, String>()
+            val active = urls.filter { it !in disabled }
+            var failed = 0
+            var servedFromCache = 0
+            var firstError: Throwable? = null
+
+            for (url in urls) {
+                if (url in disabled) {
+                    names[url] = cachedName(url) ?: repoNameFromUrl(url)
+                    continue
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                failed++
-                if (firstError == null) firstError = e
+                ensureActive()
+                try {
+                    val fetched = fetch(url, force)
+                    if (fetched.fromCache) servedFromCache++
+                    val parsed = parseRepoIndex(fetched.text, url)
+                    names[url] = parsed.name ?: repoNameFromUrl(url)
+                    for (module in parsed.modules) {
+                        if (!merged.containsKey(module.id)) merged[module.id] = module
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failed++
+                    names[url] = cachedName(url) ?: repoNameFromUrl(url)
+                    if (firstError == null) firstError = e
+                }
             }
+            if (active.isNotEmpty() && failed == active.size && merged.isEmpty()) {
+                throw firstError ?: IOException("No repositories configured")
+            }
+            CatalogResult(merged.values.toList(), failed, servedFromCache > 0, names)
         }
-        if (failed == urls.size && merged.isEmpty()) {
-            throw firstError ?: IOException("No repositories configured")
+
+    private fun cachedName(url: String): String? {
+        val file = File(dir, "${sha(url)}.jsonl")
+        if (!file.isFile) return null
+        return try {
+            parseRepoIndex(file.readText()).name
+        } catch (_: Exception) {
+            null
         }
-        CatalogResult(merged.values.toList(), failed, servedFromCache > 0)
     }
 
     private fun fetch(url: String, force: Boolean): Fetched {

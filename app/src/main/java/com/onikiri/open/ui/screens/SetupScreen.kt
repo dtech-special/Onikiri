@@ -29,10 +29,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,7 +40,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -56,11 +51,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.onikiri.open.R
 import com.onikiri.open.data.ManagerChoice
 import com.onikiri.open.root.DetectedManager
 import com.onikiri.open.root.toManager
+import com.onikiri.open.ui.components.AppIcons
 import com.onikiri.open.ui.components.Confetti3D
 import com.onikiri.open.viewmodel.RootInfo
 import com.onikiri.open.viewmodel.RootViewModel
@@ -73,8 +71,11 @@ fun SetupScreen(settingsVm: SettingsViewModel, rootVm: RootViewModel) {
     val settings by settingsVm.settings.collectAsStateWithLifecycle()
     val info by rootVm.info.collectAsStateWithLifecycle()
 
-    // Asks the root manager for permission as soon as the first step is visible.
-    LaunchedEffect(Unit) { rootVm.ensureLoaded() }
+    // Checks root when the welcome step is shown and again every time the user comes back to the app
+    // (for example after granting root in KernelSU / APatch), so no manual restart is needed.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (step == 0) rootVm.refresh()
+    }
     BackHandler(enabled = step > 0) { step-- }
 
     Surface(
@@ -98,7 +99,7 @@ fun SetupScreen(settingsVm: SettingsViewModel, rootVm: RootViewModel) {
                 label = "setupStep"
             ) { current ->
                 when (current) {
-                    0 -> WelcomeStep(info = info, onRetry = rootVm::refresh, onNext = { step = 1 })
+                    0 -> WelcomeStep(info = info, onRetry = { rootVm.refresh(userInitiated = true) }, onNext = { step = 1 })
                     1 -> ManagerStep(
                         info = info,
                         selected = settings.managerChoice,
@@ -108,7 +109,7 @@ fun SetupScreen(settingsVm: SettingsViewModel, rootVm: RootViewModel) {
                             confettiKey++
                         }
                     )
-                    else -> DoneStep(
+                    else -> SetupDoneScreen(
                         info = info,
                         choice = settings.managerChoice,
                         onFinish = settingsVm::completeSetup
@@ -183,7 +184,7 @@ private fun WelcomeStep(info: RootInfo, onRetry: () -> Unit, onNext: () -> Unit)
         icon = {
             HeroIcon {
                 Icon(
-                    Icons.Default.Security,
+                    AppIcons.systemRoot(),
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -216,7 +217,7 @@ private fun WelcomeStep(info: RootInfo, onRetry: () -> Unit, onNext: () -> Unit)
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                Icons.Default.CheckCircle,
+                                AppIcons.checkCircle(),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -243,12 +244,12 @@ private fun WelcomeStep(info: RootInfo, onRetry: () -> Unit, onNext: () -> Unit)
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                Icons.Default.Warning,
+                                AppIcons.warning(),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                stringResource(R.string.root_not_avaliable),
+                                stringResource(R.string.root_not_available),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -288,7 +289,7 @@ private fun ManagerStep(
         icon = {
             HeroIcon {
                 Icon(
-                    Icons.Default.CheckCircle,
+                    AppIcons.checkCircle(),
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -371,7 +372,7 @@ private fun ManagerOption(title: String, subtitle: String, selected: Boolean, on
 }
 
 @Composable
-private fun DoneStep(info: RootInfo, choice: ManagerChoice, onFinish: () -> Unit) {
+private fun SetupDoneScreen(info: RootInfo, choice: ManagerChoice, onFinish: () -> Unit) {
     val scale by animateFloatAsState(
         targetValue = 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
@@ -388,7 +389,7 @@ private fun DoneStep(info: RootInfo, choice: ManagerChoice, onFinish: () -> Unit
             Box(Modifier.scale(scale)) {
                 HeroIcon {
                     Icon(
-                        Icons.Default.CheckCircle,
+                        AppIcons.checkCircle(),
                         contentDescription = null,
                         modifier = Modifier.size(56.dp),
                         tint = MaterialTheme.colorScheme.primary

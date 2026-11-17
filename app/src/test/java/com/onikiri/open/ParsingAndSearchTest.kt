@@ -72,7 +72,7 @@ class ParsingAndSearchTest {
             RepoUrl.normalize("https://github.com/u/r/blob/main/x.jsonl")
         )
         assertEquals("https://example.com/a.jsonl", RepoUrl.normalize("  https://example.com/a.jsonl "))
-        assertNull(RepoUrl.normalize("http://example.com/a.jsonl"))
+        assertEquals("http://example.com/a.jsonl", RepoUrl.normalize("http://example.com/a.jsonl"))
         assertNull(RepoUrl.normalize("not a url"))
         assertNull(RepoUrl.normalize(""))
     }

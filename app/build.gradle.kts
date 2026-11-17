@@ -3,6 +3,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Single source of truth for the release name: the last non-empty line of codenames.txt,
+// formatted as "codename (version)", e.g. "powder (4.0-0)". The CI release job reads the same line.
+val releaseLine = rootProject.file("codenames.txt").readLines()
+    .map { it.trim() }
+    .lastOrNull { it.isNotEmpty() } ?: "unknown (0.0-0)"
+val releaseMatch = Regex("""^(\S+)\s+\(([^)]+)\)""").find(releaseLine)
+val releaseCodename = (releaseMatch?.groupValues?.get(1) ?: "unknown")
+    .replaceFirstChar { it.uppercase() }
+val releaseVersion = releaseMatch?.groupValues?.get(2) ?: "0.0-0"
+
 android {
     namespace = "com.onikiri.open"
     compileSdk {
@@ -13,8 +23,10 @@ android {
         applicationId = "com.onikiri.open"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 40
+        versionName = releaseVersion
+
+        buildConfigField("String", "VERSION_CODENAME", "\"$releaseCodename\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -32,6 +44,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -46,6 +59,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

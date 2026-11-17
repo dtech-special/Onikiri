@@ -31,7 +31,8 @@ class MainActivity : ComponentActivity() {
                 themeMode = settings.themeMode,
                 dynamicColor = settings.dynamicColor,
                 presetId = settings.presetId,
-                amoled = settings.amoled
+                amoled = settings.amoled,
+                fontId = settings.fontId
             ) {
                 OnikiriRoot()
             }
