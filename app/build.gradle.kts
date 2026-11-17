@@ -92,8 +92,9 @@ base {
 }
 
 tasks.matching { it.name == "assembleDebug" }.configureEach {
+    val apkDir = layout.buildDirectory.dir("outputs/apk/debug")
     doLast {
-        val dir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        val dir = apkDir.get().asFile
         dir.listFiles { f -> f.name.endsWith("-debug.apk") }?.forEach { file ->
             val target = File(dir, file.name.removeSuffix("-debug.apk") + ".apk")
             if (target.exists()) target.delete()
