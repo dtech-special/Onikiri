@@ -251,7 +251,7 @@ private fun PresetSwatch(preset: AccentPreset, selected: Boolean, onClick: () ->
                 .background(preset.seed),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = selected,
                 enter = scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec()) +
                     fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
