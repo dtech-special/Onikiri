@@ -75,3 +75,15 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
+val codename = rootProject.file("codenames.txt")
+    .takeIf { it.exists() }
+    ?.readLines()
+    ?.lastOrNull { it.isNotBlank() }
+    ?.trim()
+    ?.substringBefore(" ")
+    ?: "Powder"
+
+base {
+    archivesName.set("Onikiri-v${android.defaultConfig.versionName ?: "4.0-0"}-$codename")
+}
