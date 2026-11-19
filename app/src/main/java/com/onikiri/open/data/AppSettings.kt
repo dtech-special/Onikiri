@@ -20,5 +20,7 @@ data class AppSettings(
     val confirmSoftReboot: Boolean = true,
     val customRepos: List<String> = emptyList(),
     /** Repositories (built-in or custom) that are switched off. */
-    val disabledRepos: List<String> = emptyList()
+    val disabledRepos: List<String> = emptyList(),
+    /** Opt-in background check of GitHub releases for installed modules (uses network). */
+    val checkModuleUpdates: Boolean = false
 )

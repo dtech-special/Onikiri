@@ -1,3 +1,18 @@
+# Onikiri v4.0-5 "Powder"
+
+## v4.0-5 "powder" (versionCode 45)
+- **Module binding**: after a catalog install Onikiri writes `data.onikiri` (`catalog_id`, `github_repo`) into
+  `/data/adb/modules/<dir>` and, if the module waits for a reboot, `/data/adb/modules_update/<dir>`.
+  `module.prop` + `data.onikiri` of all modules are read in one root call; matching is by `catalog_id`, fallback by
+  normalized `id`/`name`. Versions like `1.5.3 (880-22a1bf5-release)` are cleaned to `[1, 5, 3]` before comparing.
+- **Optional update check** (Settings > Repositories, off by default, traffic warning): GitHub `releases/latest` with an
+  ETag cache, 4 parallel requests, only for installed modules with a known `github_repo`; no requests while scrolling.
+- **Filters**: fixed set All / Installed / Verified / In review / Risk (no more filters made from `.jsonl` names);
+  Material 3 verification badge instead of `[ Verified ]`.
+- **Speed**: tabs stay composed (zIndex + alpha), filtering/search/mapping on `Dispatchers.Default`, `@Immutable` UI models,
+  `key` + `contentType` in lists, repositories are loaded in parallel.
+- **Easter egg**: tap the version in About 5 times - SecretPhysicsScreen (accelerometer, bounces, collisions, drag and throw).
+
 # Onikiri v4.0-0 "Powder"
 
 Release name and version come from the last line of `codenames.txt` (`powder (4.0-0)`):

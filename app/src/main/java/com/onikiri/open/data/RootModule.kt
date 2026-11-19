@@ -8,7 +8,7 @@ enum class ModuleStatus {
     companion object {
         fun fromRaw(raw: String): ModuleStatus = when (raw.trim()) {
             "1" -> VERIFIED
-            "2" -> REVIEW
+            "0", "2" -> REVIEW
             "3" -> HAZARD
             else -> UNKNOWN
         }

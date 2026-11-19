@@ -59,13 +59,16 @@ fun SettingsScreen(
     snackbar: SnackbarHostState,
     onPickLocal: () -> Unit,
     onReboot: () -> Unit,
-    onSoftReboot: () -> Unit
+    onSoftReboot: () -> Unit,
+    /** False while another tab is shown: the hidden Settings tab must not consume the Back button. */
+    active: Boolean = true,
+    onSecret: () -> Unit = {}
 ) {
     var routeName by rememberSaveable { mutableStateOf(SettingsRoute.HUB.name) }
     val route = SettingsRoute.valueOf(routeName)
     val goHub = { routeName = SettingsRoute.HUB.name }
 
-    BackHandler(enabled = route != SettingsRoute.HUB) {
+    BackHandler(enabled = active && route != SettingsRoute.HUB) {
         routeName = if (route == SettingsRoute.LICENSES) SettingsRoute.ABOUT.name else SettingsRoute.HUB.name
     }
 
@@ -93,6 +96,7 @@ fun SettingsScreen(
             )
             SettingsRoute.ABOUT -> AboutScreen(
                 onOpenLicenses = { routeName = SettingsRoute.LICENSES.name },
+                onSecret = onSecret,
                 onBack = goHub
             )
             SettingsRoute.LICENSES -> LicensesScreen(onBack = { routeName = SettingsRoute.ABOUT.name })

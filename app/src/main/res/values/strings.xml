@@ -12,9 +12,9 @@
     <string name="fail">An error occurred!</string>
     <string name="module_version">Version:</string>
     <string name="module_size">Size:</string>
-    <string name="status_verified">[ Verified ]</string>
-    <string name="status_review">[ In review ]</string>
-    <string name="status_hazard">[ Risk! ]</string>
+    <string name="status_verified">Verified</string>
+    <string name="status_review">In review</string>
+    <string name="status_hazard">Risk</string>
     <string name="repo_url">Repo URL:</string>
     <string name="confirm_action">Continue</string>
     <string name="cancel_action">Cancel</string>
@@ -187,6 +187,9 @@
     <string name="open_in_browser">Open in browser</string>
     <string name="filter_all">All</string>
     <string name="filter_installed">Installed</string>
+    <string name="filter_verified">Verified</string>
+    <string name="filter_review">In review</string>
+    <string name="filter_hazard">Risk</string>
     <string name="filter_empty">Nothing here for this filter.</string>
     <string name="installed_empty">No modules installed yet.</string>
     <string name="installed_no_root">Root access is required to read /data/adb/modules.</string>
@@ -237,6 +240,12 @@
     <string name="repos_imported">Added: %1$d, skipped: %2$d</string>
     <string name="system_actions">Actions</string>
     <string name="system_install_local">Install a local .zip</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_check_updates">Check for module updates</string>
+    <string name="settings_check_updates_warning">This may increase network traffic.</string>
+    <string name="secret_mode_enabled">Secret mode enabled.</string>
+    <string name="log_bound_ok">Module linked to the catalog (data.onikiri).</string>
+    <string name="log_bound_failed">Could not write data.onikiri; the module will be matched by name.</string>
     <string name="about_version_line">Onikiri v%1$s \"%2$s\"</string>
     <string name="about_license_line">Free software under GNU GPL v3.0</string>
     <string name="about_github">GitHub repository</string>

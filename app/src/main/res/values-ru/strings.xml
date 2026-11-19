@@ -12,9 +12,9 @@
     <string name="fail">Произошла ошибка!</string>
     <string name="module_version">Версия:</string>
     <string name="module_size">Размер:</string>
-    <string name="status_verified">[ Проверено ]</string>
-    <string name="status_review">[ Проверка ]</string>
-    <string name="status_hazard">[ Есть риск! ]</string>
+    <string name="status_verified">Проверено</string>
+    <string name="status_review">На проверке</string>
+    <string name="status_hazard">Риск</string>
     <string name="repo_url">URL Репозитория:</string>
     <string name="confirm_action">Продолжить</string>
     <string name="cancel_action">Отменить</string>
@@ -184,6 +184,9 @@
     <string name="open_in_browser">Открыть в браузере</string>
     <string name="filter_all">Все</string>
     <string name="filter_installed">Установленные</string>
+    <string name="filter_verified">Проверено</string>
+    <string name="filter_review">На проверке</string>
+    <string name="filter_hazard">Риск</string>
     <string name="filter_empty">По этому фильтру ничего нет.</string>
     <string name="installed_empty">Модулей пока не установлено.</string>
     <string name="installed_no_root">Для чтения /data/adb/modules нужен root-доступ.</string>
@@ -234,6 +237,12 @@
     <string name="repos_imported">Добавлено: %1$d, пропущено: %2$d</string>
     <string name="system_actions">Действия</string>
     <string name="system_install_local">Установить локальный .zip</string>
+    <string name="settings_updates">Обновления</string>
+    <string name="settings_check_updates">Поиск обновлений модулей</string>
+    <string name="settings_check_updates_warning">Это может увеличить трафик сети.</string>
+    <string name="secret_mode_enabled">Секретный режим включен.</string>
+    <string name="log_bound_ok">Модуль привязан к каталогу (data.onikiri).</string>
+    <string name="log_bound_failed">Не удалось записать data.onikiri; модуль будет сопоставлен по имени.</string>
     <string name="about_version_line">Onikiri v%1$s \"%2$s\"</string>
     <string name="about_license_line">Свободное ПО под GNU GPL v3.0</string>
     <string name="about_github">Репозиторий на GitHub</string>

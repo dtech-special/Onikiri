@@ -36,10 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.onikiri.open.R
-import com.onikiri.open.data.InstallState
-import com.onikiri.open.data.InstalledModule
 import com.onikiri.open.data.RootModule
-import com.onikiri.open.data.installStateOf
 import com.onikiri.open.ui.components.AppIcons
 import com.onikiri.open.ui.components.CenteredLoading
 import com.onikiri.open.ui.components.CenteredMessage
@@ -47,9 +44,8 @@ import com.onikiri.open.ui.components.ConnectedAction
 import com.onikiri.open.ui.components.ConnectedActions
 import com.onikiri.open.ui.components.NavCapsuleClearance
 import com.onikiri.open.ui.theme.emphasized
-import com.onikiri.open.viewmodel.CatalogState
 import com.onikiri.open.viewmodel.CatalogViewModel
-import com.onikiri.open.viewmodel.DetailsState
+import com.onikiri.open.viewmodel.InstalledModuleUiItem
 import com.onikiri.open.viewmodel.InstalledState
 import com.onikiri.open.viewmodel.InstalledViewModel
 
@@ -63,13 +59,15 @@ fun InstalledScreen(
 ) {
     val state by installedVm.state.collectAsStateWithLifecycle()
     val refreshing by installedVm.refreshing.collectAsStateWithLifecycle()
-    val catalog by catalogVm.state.collectAsStateWithLifecycle()
-    val details by catalogVm.details.collectAsStateWithLifecycle()
+    val items by catalogVm.installedItems.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { installedVm.ensureLoaded() }
 
-    val catalogById = remember(catalog) {
-        (catalog as? CatalogState.Ready)?.modules?.associateBy { it.id }.orEmpty()
+    val onEnabledChange = remember(installedVm) { { dir: String, on: Boolean -> installedVm.setEnabled(dir, on) } }
+    val onRemove = remember(installedVm) { { dir: String -> installedVm.setRemoval(dir, true) } }
+    val onUndoRemove = remember(installedVm) { { dir: String -> installedVm.setRemoval(dir, false) } }
+    val onUpdateCatalog = remember(catalogVm, onUpdate) {
+        { catalogId: String -> catalogVm.moduleById(catalogId)?.let(onUpdate); Unit }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -101,18 +99,13 @@ fun InstalledScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(current.modules, key = { it.dir }) { module ->
-                                val catalogModule = catalogById[module.id]
-                                val loaded = (details[module.id] as? DetailsState.Loaded)?.details
-                                val canUpdate = catalogModule != null &&
-                                    installStateOf(module, loaded) == InstallState.UPDATE
+                            items(items, key = { it.dir }, contentType = { "installed_card" }) { module ->
                                 InstalledCard(
                                     module = module,
-                                    canUpdate = canUpdate,
-                                    onEnabledChange = { installedVm.setEnabled(module, it) },
-                                    onRemove = { installedVm.setRemoval(module, true) },
-                                    onUndoRemove = { installedVm.setRemoval(module, false) },
-                                    onUpdate = { if (catalogModule != null) onUpdate(catalogModule) },
+                                    onEnabledChange = onEnabledChange,
+                                    onRemove = onRemove,
+                                    onUndoRemove = onUndoRemove,
+                                    onUpdate = onUpdateCatalog,
                                     modifier = Modifier.animateItem()
                                 )
                             }
@@ -135,14 +128,14 @@ fun InstalledScreen(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun InstalledCard(
-    module: InstalledModule,
-    canUpdate: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    onRemove: () -> Unit,
-    onUndoRemove: () -> Unit,
-    onUpdate: () -> Unit,
+    module: InstalledModuleUiItem,
+    onEnabledChange: (String, Boolean) -> Unit,
+    onRemove: (String) -> Unit,
+    onUndoRemove: (String) -> Unit,
+    onUpdate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val canUpdate = module.canUpdate
     val updateLabel = stringResource(R.string.module_update)
     val removeLabel = stringResource(R.string.installed_remove)
     val undoLabel = stringResource(R.string.installed_undo)
@@ -177,7 +170,7 @@ private fun InstalledCard(
                 }
                 Switch(
                     checked = !module.disabled,
-                    onCheckedChange = onEnabledChange,
+                    onCheckedChange = { onEnabledChange(module.dir, it) },
                     enabled = !module.removing
                 )
             }
@@ -204,12 +197,12 @@ private fun InstalledCard(
             }
             val actions = buildList {
                 if (canUpdate && !module.removing) {
-                    add(ConnectedAction(updateLabel, onUpdate, icon = updateIcon, primary = true))
+                    add(ConnectedAction(updateLabel, { module.catalogId?.let(onUpdate) }, icon = updateIcon, primary = true))
                 }
                 if (module.removing) {
-                    add(ConnectedAction(undoLabel, onUndoRemove, icon = restartIcon))
+                    add(ConnectedAction(undoLabel, { onUndoRemove(module.dir) }, icon = restartIcon))
                 } else {
-                    add(ConnectedAction(removeLabel, onRemove, icon = deleteIcon, destructive = true))
+                    add(ConnectedAction(removeLabel, { onRemove(module.dir) }, icon = deleteIcon, destructive = true))
                 }
             }
             ConnectedActions(actions)

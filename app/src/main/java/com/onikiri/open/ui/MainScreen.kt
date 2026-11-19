@@ -26,14 +26,19 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +56,7 @@ import com.onikiri.open.ui.screens.InstallScreen
 import com.onikiri.open.ui.screens.InstalledScreen
 import com.onikiri.open.ui.screens.ModulesScreen
 import com.onikiri.open.ui.screens.SearchScreen
+import com.onikiri.open.ui.screens.SecretPhysicsScreen
 import com.onikiri.open.ui.screens.SettingsScreen
 import com.onikiri.open.ui.screens.SetupScreen
 import com.onikiri.open.viewmodel.CatalogViewModel
@@ -72,6 +78,31 @@ private val Destinations = listOf(
     NavDestination(R.string.nav_settings) { AppIcons.settings(it) }
 )
 
+/** One tab. Hidden tabs stay in the tree but are invisible, below the active one and ignore input. */
+@Composable
+private fun TabLayer(active: Boolean, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(if (active) 1f else 0f)
+            .graphicsLayer { alpha = if (active) 1f else 0f }
+            .then(if (active) Modifier else Modifier.blockInput())
+    ) {
+        content()
+    }
+}
+
+private fun Modifier.blockInput(): Modifier = this
+    .pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+            }
+        }
+    }
+    .clearAndSetSemantics { }
+
 /** Entry point of the UI: first-run setup, then the main scaffold. */
 @Composable
 fun OnikiriRoot() {
@@ -81,6 +112,9 @@ fun OnikiriRoot() {
     val installedVm: InstalledViewModel = viewModel()
     val installVm: InstallViewModel = viewModel()
     val settings by settingsVm.settings.collectAsStateWithLifecycle()
+
+    // Catalog cards (Installed / Update) are mapped from the installed list inside the ViewModel.
+    LaunchedEffect(catalogVm, installedVm) { catalogVm.bindInstalled(installedVm.modules) }
 
     AnimatedContent(
         targetState = settings.setupDone,
@@ -111,7 +145,9 @@ private fun MainScaffold(
 ) {
     var selected by rememberSaveable { mutableIntStateOf(PAGE_MODULES) }
     val snackbar = remember { SnackbarHostState() }
-    val stateHolder = rememberSaveableStateHolder()
+    var visitedMask by rememberSaveable { mutableIntStateOf(1 shl PAGE_MODULES) }
+    val shown = visitedMask or (1 shl selected)
+    var secretOpen by remember { mutableStateOf(false) }
     val install by installVm.state.collectAsStateWithLifecycle()
     val settings by settingsVm.settings.collectAsStateWithLifecycle()
     val rebootRequired by SessionState.rebootRequired.collectAsStateWithLifecycle()
@@ -132,8 +168,9 @@ private fun MainScaffold(
         localZipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
     }
 
-    // Reads /data/adb/modules once so the catalog can show Installed / Update right away.
+    // Reads /data/adb/modules (module.prop + data.onikiri) so the catalog can show Installed / Update right away.
     LaunchedEffect(Unit) { installedVm.ensureLoaded() }
+    LaunchedEffect(selected) { visitedMask = visitedMask or (1 shl selected) }
     // A finished installation changes the installed list.
     LaunchedEffect(install.stage) {
         if (install.stage == InstallStage.SUCCESS) installedVm.refresh()
@@ -150,37 +187,36 @@ private fun MainScaffold(
                     onSoftReboot = { if (settings.confirmSoftReboot) confirmBannerSoft = true else softReboot() },
                     onDismiss = SessionState::clearRebootRequired
                 )
-                AnimatedContent(
-                    targetState = selected,
-                    modifier = Modifier.weight(1f).fillMaxSize(),
-                    transitionSpec = {
-                        val direction = if (targetState > initialState) 1 else -1
-                        (slideInHorizontally(tween(320)) { it * direction / 4 } + fadeIn(tween(320))) togetherWith
-                            (slideOutHorizontally(tween(260)) { -it * direction / 4 } + fadeOut(tween(200)))
-                    },
-                    label = "tabs"
-                ) { page ->
-                    // Keeps scroll position and input of every tab while it is off screen.
-                    stateHolder.SaveableStateProvider(page) {
-                        when (page) {
-                            PAGE_MODULES -> ModulesScreen(catalogVm, installedVm, requestInstall)
-                            PAGE_INSTALLED -> InstalledScreen(
-                                installedVm = installedVm,
-                                catalogVm = catalogVm,
-                                onUpdate = requestInstall,
-                                onPickLocal = pickLocalZip
-                            )
-                            PAGE_SEARCH -> SearchScreen(catalogVm, installedVm, requestInstall)
-                            else -> SettingsScreen(
-                                settingsVm = settingsVm,
-                                rootVm = rootVm,
-                                catalogVm = catalogVm,
-                                installBusy = install.busy,
-                                snackbar = snackbar,
-                                onPickLocal = pickLocalZip,
-                                onReboot = installVm::reboot,
-                                onSoftReboot = softReboot
-                            )
+                // Visited tabs stay composed (scroll position, cards and input survive); only the
+                // visibility changes, so switching tabs costs no recomposition.
+                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    for (page in PAGE_MODULES..PAGE_SETTINGS) {
+                        if (shown and (1 shl page) == 0) continue
+                        key(page) {
+                            TabLayer(active = page == selected) {
+                                when (page) {
+                                    PAGE_MODULES -> ModulesScreen(catalogVm, requestInstall)
+                                    PAGE_INSTALLED -> InstalledScreen(
+                                        installedVm = installedVm,
+                                        catalogVm = catalogVm,
+                                        onUpdate = requestInstall,
+                                        onPickLocal = pickLocalZip
+                                    )
+                                    PAGE_SEARCH -> SearchScreen(catalogVm, requestInstall)
+                                    else -> SettingsScreen(
+                                        settingsVm = settingsVm,
+                                        rootVm = rootVm,
+                                        catalogVm = catalogVm,
+                                        installBusy = install.busy,
+                                        snackbar = snackbar,
+                                        active = selected == PAGE_SETTINGS,
+                                        onPickLocal = pickLocalZip,
+                                        onReboot = installVm::reboot,
+                                        onSoftReboot = softReboot,
+                                        onSecret = { secretOpen = true }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -213,6 +249,10 @@ private fun MainScaffold(
                 onPickArchive = installVm::confirmArchive,
                 onDismissArchivePicker = installVm::dismissArchivePicker
             )
+        }
+
+        if (secretOpen) {
+            SecretPhysicsScreen(onClose = { secretOpen = false })
         }
     }
 

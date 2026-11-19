@@ -22,3 +22,7 @@ fun filterModules(
         tokens.all { haystack.contains(it) }
     }
 }
+
+/** Lower-case whitespace-separated words of a search query. */
+fun queryTokens(query: String): List<String> =
+    query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }

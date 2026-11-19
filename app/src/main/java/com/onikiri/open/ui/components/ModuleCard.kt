@@ -30,42 +30,43 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.onikiri.open.R
 import com.onikiri.open.data.InstallState
-import com.onikiri.open.data.InstalledModule
 import com.onikiri.open.data.ModuleStatus
-import com.onikiri.open.data.RootModule
 import com.onikiri.open.ui.theme.emphasized
 import com.onikiri.open.viewmodel.DetailsState
+import com.onikiri.open.viewmodel.ModuleUiItem
 
 /**
  * Module card. Tapping the card (or "Details") toggles the expanded view with the full description,
  * author, version, module id, update date, a clickable source link and the README. The primary
  * action reflects the installed state: Install, Installed (tap to reinstall) or Update.
+ * It only receives an immutable UI item and callbacks that take ids, so it recomposes only when
+ * its own item changes.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ModuleCard(
-    module: RootModule,
-    installState: InstallState,
-    installed: InstalledModule?,
-    expanded: Boolean,
-    details: DetailsState?,
-    onToggle: () -> Unit,
-    onInstall: () -> Unit,
-    onRetryDetails: () -> Unit,
-    onOpenSource: () -> Unit,
+    item: ModuleUiItem,
+    onToggle: (String) -> Unit,
+    onInstall: (String) -> Unit,
+    onRetryDetails: (String) -> Unit,
+    onOpenSource: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val expanded = item.expanded
+    val installState = item.installState
     val chevron by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "chevron"
     )
-    val hazard = module.status == ModuleStatus.HAZARD
+    val hazard = item.status == ModuleStatus.HAZARD
     val primaryLabel = stringResource(
         when (installState) {
             InstallState.NOT_INSTALLED -> R.string.module_install
@@ -80,21 +81,26 @@ fun ModuleCard(
     }
     val detailsLabel = stringResource(if (expanded) R.string.module_hide else R.string.module_details)
     val detailsIcon = AppIcons.expandMore()
-    val actions = remember(installState, primaryLabel, detailsLabel, hazard, onInstall, onToggle) {
+    val id = item.id
+    val toggle = remember(id, onToggle) { { onToggle(id) } }
+    val install = remember(id, onInstall) { { onInstall(id) } }
+    val retry = remember(id, onRetryDetails) { { onRetryDetails(id) } }
+    val openSource = remember(item.githubRepo, onOpenSource) { { onOpenSource(item.githubRepo) } }
+    val actions = remember(installState, primaryLabel, detailsLabel, hazard, install, toggle) {
         listOf(
             ConnectedAction(
                 label = primaryLabel,
-                onClick = onInstall,
+                onClick = install,
                 icon = primaryIcon,
                 primary = installState != InstallState.INSTALLED && !hazard,
                 destructive = hazard && installState == InstallState.NOT_INSTALLED
             ),
-            ConnectedAction(label = detailsLabel, onClick = onToggle, icon = detailsIcon)
+            ConnectedAction(label = detailsLabel, onClick = toggle, icon = detailsIcon)
         )
     }
 
     ElevatedCard(
-        onClick = onToggle,
+        onClick = toggle,
         modifier = modifier
             .fillMaxWidth()
             .animateContentSize(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec())
@@ -102,15 +108,15 @@ fun ModuleCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = module.title, style = MaterialTheme.typography.titleMedium.emphasized())
+                    Text(text = item.title, style = MaterialTheme.typography.titleMedium.emphasized())
                     Text(
-                        text = module.description,
+                        text = item.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = if (expanded) Int.MAX_VALUE else 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    StatusLabel(module.status, installed)
+                    StatusRow(item.status, item.installedVersion)
                 }
                 Spacer(Modifier.width(8.dp))
                 Icon(
@@ -127,47 +133,94 @@ fun ModuleCard(
                 exit = fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())
             ) {
                 ExpandedDetails(
-                    module = module,
-                    installed = installed,
-                    details = details,
-                    onRetry = onRetryDetails,
-                    onOpenSource = onOpenSource
+                    item = item,
+                    onRetry = retry,
+                    onOpenSource = openSource
                 )
             }
         }
     }
 }
 
+/** Verification badge (Material 3 style: rounded tinted surface with icon and text) and the installed version. */
 @Composable
-private fun StatusLabel(status: ModuleStatus, installed: InstalledModule?) {
-    val (text, color) = when (status) {
-        ModuleStatus.VERIFIED -> stringResource(R.string.status_verified) to MaterialTheme.colorScheme.primary
-        ModuleStatus.REVIEW -> stringResource(R.string.status_review) to MaterialTheme.colorScheme.tertiary
-        ModuleStatus.HAZARD -> stringResource(R.string.status_hazard) to MaterialTheme.colorScheme.error
-        ModuleStatus.UNKNOWN -> "" to MaterialTheme.colorScheme.outline
+private fun StatusRow(status: ModuleStatus, installedVersion: String?) {
+    val installedText = installedVersion?.let {
+        stringResource(R.string.module_installed_version, it.ifBlank { "?" })
     }
-    val installedText = installed?.let {
-        stringResource(R.string.module_installed_version, it.version.ifBlank { "?" })
+    if (status == ModuleStatus.UNKNOWN && installedText == null) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 2.dp)
+    ) {
+        StatusBadge(status)
+        if (installedText != null) {
+            Text(
+                text = installedText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+        }
     }
-    val combined = listOfNotNull(text.ifEmpty { null }, installedText).joinToString("  ·  ")
-    if (combined.isNotEmpty()) {
-        Text(text = combined, style = MaterialTheme.typography.labelSmall, color = color)
+}
+
+@Composable
+fun StatusBadge(status: ModuleStatus, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val color: Color
+    val label: String
+    val icon: Painter
+    when (status) {
+        ModuleStatus.VERIFIED -> {
+            color = scheme.primary
+            label = stringResource(R.string.status_verified)
+            icon = AppIcons.checkCircle()
+        }
+        ModuleStatus.REVIEW -> {
+            color = scheme.tertiary
+            label = stringResource(R.string.status_review)
+            icon = AppIcons.schedule()
+        }
+        ModuleStatus.HAZARD -> {
+            color = scheme.error
+            label = stringResource(R.string.status_hazard)
+            icon = AppIcons.warning()
+        }
+        ModuleStatus.UNKNOWN -> return
+    }
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = color.copy(alpha = 0.14f),
+        contentColor = color,
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(painter = icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Text(text = label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
     }
 }
 
 @Composable
 private fun ExpandedDetails(
-    module: RootModule,
-    installed: InstalledModule?,
-    details: DetailsState?,
+    item: ModuleUiItem,
     onRetry: () -> Unit,
     onOpenSource: () -> Unit
 ) {
+    val details = item.details
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HorizontalDivider()
         val loaded = (details as? DetailsState.Loaded)?.details
 
-        InfoRow(stringResource(R.string.author), loaded?.author ?: module.owner)
+        InfoRow(stringResource(R.string.author), loaded?.author ?: item.owner)
         InfoRow(
             stringResource(R.string.module_version),
             when {
@@ -176,15 +229,16 @@ private fun ExpandedDetails(
                 else -> stringResource(R.string.module_no_release)
             }
         )
-        InfoRow(stringResource(R.string.module_id), module.id)
+        InfoRow(stringResource(R.string.module_id), item.id)
         InfoRow(
             stringResource(R.string.module_updated),
             loaded?.publishedAt?.let { formatIsoDate(it) } ?: "—"
         )
-        if (installed != null) {
+        if (item.installedVersion != null) {
             InfoRow(
                 stringResource(R.string.module_installed_label),
-                installed.version.ifBlank { "?" } + if (installed.versionCode > 0) " (${installed.versionCode})" else ""
+                item.installedVersion.ifBlank { "?" } +
+                    if (item.installedVersionCode > 0) " (${item.installedVersionCode})" else ""
             )
         }
         Row(
@@ -200,7 +254,7 @@ private fun ExpandedDetails(
                 modifier = Modifier.width(96.dp)
             )
             Text(
-                text = "github.com/${module.githubRepo}",
+                text = "github.com/${item.githubRepo}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)

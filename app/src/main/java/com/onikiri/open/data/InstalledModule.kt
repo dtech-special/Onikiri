@@ -13,12 +13,17 @@ data class InstalledModule(
     val author: String,
     val description: String,
     val disabled: Boolean,
-    val removing: Boolean
+    val removing: Boolean,
+    /** `catalog_id` from data.onikiri (written by Onikiri on install); empty for manual installs. */
+    val catalogId: String = "",
+    /** `github_repo` from data.onikiri; empty for manual installs. */
+    val githubRepo: String = ""
 )
 
 /**
  * Parses the output of the scan script: for each module a `@@MODULE|dir|disabled|removing`
- * line, the module.prop contents, then `@@END`.
+ * line, the module.prop contents, optionally `@@DATA` followed by the data.onikiri contents,
+ * then `@@END`.
  */
 fun parseInstalledModules(lines: List<String>): List<InstalledModule> {
     val result = ArrayList<InstalledModule>()
@@ -26,6 +31,8 @@ fun parseInstalledModules(lines: List<String>): List<InstalledModule> {
     var disabled = false
     var removing = false
     var props = HashMap<String, String>()
+    var data = HashMap<String, String>()
+    var inData = false
 
     fun flush() {
         val d = dir ?: return
@@ -39,11 +46,15 @@ fun parseInstalledModules(lines: List<String>): List<InstalledModule> {
                 author = props["author"].orEmpty(),
                 description = props["description"].orEmpty(),
                 disabled = disabled,
-                removing = removing
+                removing = removing,
+                catalogId = data["catalog_id"].orEmpty(),
+                githubRepo = data["github_repo"].orEmpty()
             )
         )
         dir = null
         props = HashMap()
+        data = HashMap()
+        inData = false
     }
 
     for (raw in lines) {
@@ -60,8 +71,11 @@ fun parseInstalledModules(lines: List<String>): List<InstalledModule> {
                 }
             }
             line == "@@END" -> flush()
+            line == "@@DATA" -> if (dir != null) inData = true
             dir != null && line.contains('=') && !line.trimStart().startsWith("#") -> {
-                props[line.substringBefore('=').trim()] = line.substringAfter('=').trim()
+                val key = line.substringBefore('=').trim()
+                val value = line.substringAfter('=').trim()
+                if (inData) data[key] = value else props[key] = value
             }
         }
     }

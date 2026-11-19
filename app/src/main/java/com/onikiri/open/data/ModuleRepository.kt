@@ -4,7 +4,9 @@ import android.content.Context
 import com.onikiri.open.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -29,36 +31,55 @@ class ModuleRepository(context: Context) {
 
     private class Fetched(val text: String, val fromCache: Boolean)
 
+    private class Outcome(
+        val url: String,
+        val skipped: Boolean = false,
+        val parsed: ParsedIndex? = null,
+        val fromCache: Boolean = false,
+        val error: Throwable? = null
+    )
+
+    /** Repositories are downloaded and parsed in parallel; the merge keeps the configured order. */
     suspend fun load(urls: List<String>, disabled: Set<String>, force: Boolean): CatalogResult =
         withContext(Dispatchers.IO) {
             dir.mkdirs()
+            val active = urls.filter { it !in disabled }
+            val outcomes = coroutineScope {
+                urls.map { url ->
+                    async {
+                        if (url in disabled) return@async Outcome(url, skipped = true)
+                        try {
+                            val fetched = fetch(url, force)
+                            Outcome(url, parsed = parseRepoIndex(fetched.text, url), fromCache = fetched.fromCache)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Outcome(url, error = e)
+                        }
+                    }
+                }.awaitAll()
+            }
+
             val merged = LinkedHashMap<String, RootModule>()
             val names = LinkedHashMap<String, String>()
-            val active = urls.filter { it !in disabled }
             var failed = 0
             var servedFromCache = 0
             var firstError: Throwable? = null
-
-            for (url in urls) {
-                if (url in disabled) {
-                    names[url] = cachedName(url) ?: repoNameFromUrl(url)
-                    continue
-                }
-                ensureActive()
-                try {
-                    val fetched = fetch(url, force)
-                    if (fetched.fromCache) servedFromCache++
-                    val parsed = parseRepoIndex(fetched.text, url)
-                    names[url] = parsed.name ?: repoNameFromUrl(url)
-                    for (module in parsed.modules) {
-                        if (!merged.containsKey(module.id)) merged[module.id] = module
+            for (o in outcomes) {
+                when {
+                    o.skipped -> names[o.url] = cachedName(o.url) ?: repoNameFromUrl(o.url)
+                    o.parsed != null -> {
+                        if (o.fromCache) servedFromCache++
+                        names[o.url] = o.parsed.name ?: repoNameFromUrl(o.url)
+                        for (module in o.parsed.modules) {
+                            if (!merged.containsKey(module.id)) merged[module.id] = module
+                        }
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    failed++
-                    names[url] = cachedName(url) ?: repoNameFromUrl(url)
-                    if (firstError == null) firstError = e
+                    else -> {
+                        failed++
+                        names[o.url] = cachedName(o.url) ?: repoNameFromUrl(o.url)
+                        if (firstError == null) firstError = o.error
+                    }
                 }
             }
             if (active.isNotEmpty() && failed == active.size && merged.isEmpty()) {

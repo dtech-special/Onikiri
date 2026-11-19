@@ -97,6 +97,7 @@ object RootShell {
         "  echo \"@@MODULE|§n|§dis|§rem\"",
         "  cat \"§{d}module.prop\"",
         "  echo",
+        "  if [ -f \"§{d}data.onikiri\" ]; then echo \"@@DATA\"; cat \"§{d}data.onikiri\"; echo; fi",
         "  echo \"@@END\"",
         "done"
     ).joinToString("\n").replace('§', '$')
@@ -106,6 +107,32 @@ object RootShell {
         if (!Shell.getShell().isRoot) return@withContext null
         parseInstalledModules(Shell.cmd(SCAN_SCRIPT).exec().out)
     }
+
+    private fun oneLine(value: String): String = value.replace(Regex("[\\r\\n]"), "").trim()
+
+    /**
+     * Binds an installed module to its catalog entry by writing data.onikiri into
+     * /data/adb/modules/<dir> and, when the module waits for a reboot, /data/adb/modules_update/<dir>.
+     * Only existing module folders are written to. Returns true when at least one file was written.
+     */
+    suspend fun writeCatalogBinding(dir: String, catalogId: String, githubRepo: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!MODULE_DIR_REGEX.matches(dir)) return@withContext false
+            val id = oneLine(catalogId)
+            val repo = oneLine(githubRepo)
+            if (id.isEmpty() || repo.isEmpty()) return@withContext false
+            val script = listOf(
+                "wrote=0; ok=1",
+                "for base in /data/adb/modules /data/adb/modules_update; do",
+                "  d=\"§base/$dir\"",
+                "  if [ -d \"§d\" ]; then",
+                "    printf 'catalog_id=%s\\ngithub_repo=%s\\n' ${quote(id)} ${quote(repo)} > \"§d/data.onikiri\" && wrote=1 || ok=0",
+                "  fi",
+                "done",
+                "[ \"§wrote\" = 1 ] && [ \"§ok\" = 1 ]"
+            ).joinToString("\n").replace('§', '$')
+            Shell.cmd(script).exec().isSuccess
+        }
 
     /** A `disable` file turns a module off at the next boot; removing it turns it back on. */
     suspend fun setModuleDisabled(dir: String, disabled: Boolean): Boolean =

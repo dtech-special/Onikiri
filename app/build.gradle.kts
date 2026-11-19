@@ -23,7 +23,7 @@ android {
         applicationId = "com.onikiri.open"
         minSdk = 26
         targetSdk = 37
-        versionCode = 40
+        versionCode = 45
         versionName = releaseVersion
 
         buildConfigField("String", "VERSION_CODENAME", "\"$releaseCodename\"")
@@ -85,7 +85,7 @@ val codename = rootProject.file("codenames.txt")
     ?.lowercase()
     ?: "powder"
 
-val ver = android.defaultConfig.versionName ?: "4.0-0"
+val ver = android.defaultConfig.versionName ?: "4.0-5"
 
 base {
     archivesName.set("Onikiri-$ver-$codename")

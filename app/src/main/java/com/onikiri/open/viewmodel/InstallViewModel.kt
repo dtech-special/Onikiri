@@ -194,6 +194,8 @@ class InstallViewModel(app: Application) : AndroidViewModel(app) {
             val code = RootShell.runStreaming(command) { line -> log(line, LogKind.OUTPUT) }
             if (code != 0) throw UiException(R.string.log_install_failed, code)
 
+            bindCatalogEntry(validated.info.moduleId)
+
             log(str(R.string.log_install_ok), LogKind.SUCCESS)
             SessionState.markRebootRequired()
             setStage(InstallStage.SUCCESS)
@@ -312,6 +314,19 @@ class InstallViewModel(app: Application) : AndroidViewModel(app) {
             pendingPick = null
             _state.update { it.copy(picker = null) }
         }
+    }
+
+    /** Writes data.onikiri (catalog_id, github_repo) next to the installed module so it can be matched later. */
+    private suspend fun bindCatalogEntry(moduleDir: String) {
+        val module = _state.value.module ?: return
+        val written = try {
+            RootShell.writeCatalogBinding(moduleDir, module.id, module.githubRepo)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        log(str(if (written) R.string.log_bound_ok else R.string.log_bound_failed), LogKind.INFO)
     }
 
     // ---- helpers -------------------------------------------------------------------------

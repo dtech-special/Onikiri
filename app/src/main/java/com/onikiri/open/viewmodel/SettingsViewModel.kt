@@ -62,6 +62,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setAutoClean(enabled: Boolean) = store.update { it.copy(autoCleanTemp = enabled) }
     fun setConfirmSoftReboot(enabled: Boolean) = store.update { it.copy(confirmSoftReboot = enabled) }
     fun setManagerChoice(choice: ManagerChoice) = store.update { it.copy(managerChoice = choice) }
+    fun setCheckModuleUpdates(enabled: Boolean) = store.update { it.copy(checkModuleUpdates = enabled) }
     fun completeSetup() = store.update { it.copy(setupDone = true) }
 
     fun setLauncherIcon(icon: LauncherIcon) {

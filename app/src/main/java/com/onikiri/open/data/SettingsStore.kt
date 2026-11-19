@@ -67,7 +67,8 @@ class SettingsStore private constructor(context: Context) {
             autoCleanTemp = p[AUTO_CLEAN] ?: d.autoCleanTemp,
             confirmSoftReboot = p[CONFIRM_SOFT] ?: d.confirmSoftReboot,
             customRepos = readList(p[REPOS]),
-            disabledRepos = readList(p[DISABLED_REPOS])
+            disabledRepos = readList(p[DISABLED_REPOS]),
+            checkModuleUpdates = p[CHECK_UPDATES] ?: d.checkModuleUpdates
         )
     }
 
@@ -84,6 +85,7 @@ class SettingsStore private constructor(context: Context) {
         p[CONFIRM_SOFT] = s.confirmSoftReboot
         p[REPOS] = writeList(s.customRepos)
         p[DISABLED_REPOS] = writeList(s.disabledRepos)
+        p[CHECK_UPDATES] = s.checkModuleUpdates
     }
 
     private fun readList(raw: String?): List<String> {
@@ -134,6 +136,7 @@ class SettingsStore private constructor(context: Context) {
         private val CONFIRM_SOFT = booleanPreferencesKey("confirm_soft_reboot")
         private val REPOS = stringPreferencesKey("custom_repos")
         private val DISABLED_REPOS = stringPreferencesKey("disabled_repos")
+        private val CHECK_UPDATES = booleanPreferencesKey("check_module_updates")
         private val LEGACY_MIGRATED = booleanPreferencesKey("legacy_migrated")
 
         @Volatile

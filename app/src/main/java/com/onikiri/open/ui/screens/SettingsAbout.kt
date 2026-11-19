@@ -1,5 +1,6 @@
 package com.onikiri.open.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -16,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,11 +35,14 @@ import com.onikiri.open.ui.components.SettingsSection
 import com.onikiri.open.ui.components.SubScreen
 import com.onikiri.open.ui.theme.emphasized
 
+private const val SECRET_TAPS = 5
 private const val GITHUB_URL = "https://github.com/dtech-special/Onikiri"
 
 @Composable
-fun AboutScreen(onOpenLicenses: () -> Unit, onBack: () -> Unit) {
+fun AboutScreen(onOpenLicenses: () -> Unit, onBack: () -> Unit, onSecret: () -> Unit = {}) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    var taps by remember { mutableIntStateOf(0) }
     SubScreen(title = stringResource(R.string.cat_about), onBack = onBack) {
         item(key = "about") {
             SettingsSection(title = stringResource(R.string.app_name)) {
@@ -45,7 +50,15 @@ fun AboutScreen(onOpenLicenses: () -> Unit, onBack: () -> Unit) {
                     headlineContent = { Text(versionLine(), style = MaterialTheme.typography.titleMedium.emphasized()) },
                     supportingContent = { Text(stringResource(R.string.about_license_line)) },
                     leadingContent = { Icon(AppIcons.about(), contentDescription = null) },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable {
+                        taps++
+                        if (taps >= SECRET_TAPS) {
+                            taps = 0
+                            Toast.makeText(context, R.string.secret_mode_enabled, Toast.LENGTH_SHORT).show()
+                            onSecret()
+                        }
+                    }
                 )
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.about_github)) },

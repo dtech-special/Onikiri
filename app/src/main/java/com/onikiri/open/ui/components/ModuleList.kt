@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,31 +25,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.onikiri.open.data.InstalledModule
-import com.onikiri.open.data.RootModule
-import com.onikiri.open.data.installStateOf
-import com.onikiri.open.viewmodel.DetailsState
+import com.onikiri.open.viewmodel.ModuleUiItem
 
 @Composable
 fun ModuleList(
-    modules: List<RootModule>,
-    installed: Map<String, InstalledModule>,
-    expanded: Set<String>,
-    details: Map<String, DetailsState>,
-    onToggle: (RootModule) -> Unit,
-    onInstall: (RootModule) -> Unit,
-    onRetryDetails: (RootModule) -> Unit,
-    onOpenSource: (RootModule) -> Unit,
+    items: List<ModuleUiItem>,
+    onToggle: (String) -> Unit,
+    onInstall: (String) -> Unit,
+    onRetryDetails: (String) -> Unit,
+    onOpenSource: (String) -> Unit,
     modifier: Modifier = Modifier,
-    banner: String? = null
+    banner: String? = null,
+    listState: LazyListState = rememberLazyListState()
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = NavCapsuleClearance),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (banner != null) {
-            item(key = "banner") {
+            item(key = "banner", contentType = "banner") {
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -62,19 +60,13 @@ fun ModuleList(
                 }
             }
         }
-        items(modules, key = { it.id }) { module ->
-            val installedModule = installed[module.id]
-            val loaded = (details[module.id] as? DetailsState.Loaded)?.details
+        items(items, key = { it.id }, contentType = { "module_card" }) { item ->
             ModuleCard(
-                module = module,
-                installState = installStateOf(installedModule, loaded),
-                installed = installedModule,
-                expanded = module.id in expanded,
-                details = details[module.id],
-                onToggle = { onToggle(module) },
-                onInstall = { onInstall(module) },
-                onRetryDetails = { onRetryDetails(module) },
-                onOpenSource = { onOpenSource(module) },
+                item = item,
+                onToggle = onToggle,
+                onInstall = onInstall,
+                onRetryDetails = onRetryDetails,
+                onOpenSource = onOpenSource,
                 modifier = Modifier.animateItem()
             )
         }

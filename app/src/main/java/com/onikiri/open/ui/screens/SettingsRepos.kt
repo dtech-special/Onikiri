@@ -44,6 +44,7 @@ import com.onikiri.open.ui.components.ConnectedAction
 import com.onikiri.open.ui.components.ConnectedActions
 import com.onikiri.open.ui.components.SettingsSection
 import com.onikiri.open.ui.components.SubScreen
+import com.onikiri.open.ui.components.SwitchRow
 import com.onikiri.open.ui.components.formatBytes
 import com.onikiri.open.ui.theme.emphasized
 import com.onikiri.open.viewmodel.AddRepoResult
@@ -69,6 +70,7 @@ fun ReposCacheScreen(
     var repoInput by rememberSaveable { mutableStateOf("") }
     var repoError by remember { mutableStateOf<Int?>(null) }
 
+    val trafficWarning = stringResource(R.string.settings_check_updates_warning)
     val clearedMessage = stringResource(R.string.cache_cleared)
     val exportedMessage = stringResource(R.string.repos_exported)
     val nothingToExport = stringResource(R.string.repos_nothing_to_export)
@@ -179,6 +181,26 @@ fun ReposCacheScreen(
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
+            }
+        }
+
+        item(key = "updates") {
+            SettingsSection(title = stringResource(R.string.settings_updates)) {
+                SwitchRow(
+                    title = stringResource(R.string.settings_check_updates),
+                    checked = settings.checkModuleUpdates,
+                    icon = AppIcons.update(),
+                    onCheckedChange = { enabled ->
+                        settingsVm.setCheckModuleUpdates(enabled)
+                        if (enabled) scope.launch { snackbar.showSnackbar(trafficWarning) }
+                    }
+                )
+                Text(
+                    text = trafficWarning,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
             }
         }
 

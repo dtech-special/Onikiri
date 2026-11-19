@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Security
@@ -87,6 +88,7 @@ object AppIcons {
     @Composable fun lock(): Painter = vector(Icons.Rounded.Lock)
     @Composable fun openInNew(): Painter = vector(Icons.Rounded.OpenInNew)
     @Composable fun power(): Painter = vector(Icons.Rounded.PowerSettingsNew)
+    @Composable fun schedule(): Painter = vector(Icons.Rounded.Schedule)
     @Composable fun refresh(): Painter = vector(Icons.Rounded.Refresh)
     @Composable fun restart(): Painter = vector(Icons.Rounded.RestartAlt)
     @Composable fun update(): Painter = vector(Icons.Rounded.Update)

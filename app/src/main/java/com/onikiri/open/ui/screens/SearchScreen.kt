@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,28 +25,35 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.onikiri.open.R
 import com.onikiri.open.data.RootModule
-import com.onikiri.open.data.filterModules
 import com.onikiri.open.ui.components.CenteredLoading
 import com.onikiri.open.ui.components.CenteredMessage
 import com.onikiri.open.ui.components.ModuleList
 import com.onikiri.open.ui.components.OnikiriSearchField
 import com.onikiri.open.viewmodel.CatalogState
 import com.onikiri.open.viewmodel.CatalogViewModel
-import com.onikiri.open.viewmodel.DetailsState
-import com.onikiri.open.viewmodel.InstalledViewModel
 
 @Composable
 fun SearchScreen(
     catalogVm: CatalogViewModel,
-    installedVm: InstalledViewModel,
     onInstall: (RootModule) -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val state by catalogVm.state.collectAsStateWithLifecycle()
-    val expanded by catalogVm.expanded.collectAsStateWithLifecycle()
-    val details by catalogVm.details.collectAsStateWithLifecycle()
-    val installed by installedVm.byId.collectAsStateWithLifecycle()
+    val results by catalogVm.searchResults.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
+
+    // Filtering runs in the ViewModel on Dispatchers.Default; the screen only forwards the query.
+    LaunchedEffect(query) { catalogVm.setQuery(query) }
+
+    val isEmpty by remember { derivedStateOf { results.isNullOrEmpty() } }
+    val count by remember { derivedStateOf { results?.size ?: 0 } }
+
+    val onToggle = remember(catalogVm) { { id: String -> catalogVm.toggle(id) } }
+    val onRetry = remember(catalogVm) { { id: String -> catalogVm.retryDetails(id) } }
+    val onInstallId = remember(catalogVm, onInstall) {
+        { id: String -> catalogVm.moduleById(id)?.let(onInstall); Unit }
+    }
+    val onOpenSource = remember(uriHandler) { { repo: String -> uriHandler.openUri("https://github.com/$repo") } }
 
     Column(modifier = Modifier.fillMaxSize()) {
         OnikiriSearchField(
@@ -60,41 +69,33 @@ fun SearchScreen(
                 onAction = { catalogVm.refresh(force = true) }
             )
             is CatalogState.Ready -> {
-                // Matches title, description, module id and author (repository owner, release
-                // author and the author from an installed module.prop). Runs on every keystroke.
-                val results = remember(current.modules, query, details, installed) {
-                    filterModules(current.modules, query) { module ->
-                        listOfNotNull(
-                            (details[module.id] as? DetailsState.Loaded)?.details?.author,
-                            installed[module.id]?.author
-                        ).joinToString(" ").ifEmpty { null }
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.search_count, results.size),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, top = 8.dp)
-                )
-                AnimatedContent(
-                    targetState = results.isEmpty(),
-                    modifier = Modifier.weight(1f),
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
-                    label = "searchResults"
-                ) { empty ->
-                    if (empty) {
-                        CenteredMessage(text = stringResource(R.string.search_no_results, query.trim()))
-                    } else {
-                        ModuleList(
-                            modules = results,
-                            installed = installed,
-                            expanded = expanded,
-                            details = details,
-                            onToggle = catalogVm::toggle,
-                            onInstall = onInstall,
-                            onRetryDetails = { catalogVm.loadDetails(it, force = true) },
-                            onOpenSource = { uriHandler.openUri("https://github.com/${it.githubRepo}") }
-                        )
+                val items = results
+                if (items == null) {
+                    CenteredLoading()
+                } else {
+                    Text(
+                        text = stringResource(R.string.search_count, count),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 24.dp, top = 8.dp)
+                    )
+                    AnimatedContent(
+                        targetState = isEmpty,
+                        modifier = Modifier.weight(1f),
+                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+                        label = "searchResults"
+                    ) { empty ->
+                        if (empty) {
+                            CenteredMessage(text = stringResource(R.string.search_no_results, query.trim()))
+                        } else {
+                            ModuleList(
+                                items = items,
+                                onToggle = onToggle,
+                                onInstall = onInstallId,
+                                onRetryDetails = onRetry,
+                                onOpenSource = onOpenSource
+                            )
+                        }
                     }
                 }
             }
